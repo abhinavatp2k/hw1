@@ -1,0 +1,48 @@
+import time
+import requests
+
+def download_data(url):
+    response = requests.get(url)
+    response.raise_for_status()  # Raises an HTTPError for bad responses
+    return response.text
+
+def process_data(data):
+    #Process data into a suitable format for ARFF
+    transactions = [line.split() for line in data.split('\n') if line]
+    unique_items = sorted(set(item for transaction in transactions for item in transaction))
+    
+    # Map each item to a unique index
+    item_to_index = {item: idx for idx, item in enumerate(unique_items, start=1)}
+
+    # Convert each transaction to its sparse representation
+    sparse_transactions = []
+    for transaction in transactions:
+        transaction_indices = sorted(item_to_index[item] for item in transaction)
+        sparse_transactions.append(", ".join(f"{idx - 1} 1" for idx in transaction_indices))
+    
+    return unique_items, sparse_transactions
+
+def write_arff_file(output_file_path, attributes, data):
+    #Write the processed data to an ARFF file
+    with open(output_file_path, 'w') as file:
+        file.write("@RELATION Kosarak\n\n")
+        for attr in attributes:
+            file.write(f"@ATTRIBUTE item_{attr} {{0, 1}}\n")
+        file.write("\n@DATA\n")
+        for row in data:
+            file.write(f"{{{row}}}\n")
+
+def convert_to_arff(input_url, output_file_path):
+    """Convert data from a given URL to a sparse ARFF format."""
+    try:
+        raw_data = download_data(input_url)
+        attributes, processed_data = process_data(raw_data)
+        write_arff_file(output_file_path, attributes, processed_data)
+    except Exception as e:
+        print(f"Error occurred: {e}")
+
+if __name__ == "__main__":
+    start_time = time.time()
+    convert_to_arff("http://fimi.uantwerpen.be/data/kosarak.dat", "kosarak.arff")
+    end_time = time.time()
+    print(f"Time taken to convert dat file to sparse arff file - {round(end_time - start_time)}secs")
